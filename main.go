@@ -10,19 +10,16 @@ import (
 	"os"
 	"time"
 
-	"github.com/dghubble/go-twitter/twitter"
-	"github.com/dghubble/oauth1"
+	"github.com/bwmarrin/discordgo"
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/errwrap"
 )
 
 // BotConfig store the bot configuration.
 type BotConfig struct {
-	BitMexHost            string `json:"bitmex_host"`
-	TwitterConsumerKey    string `json:"twitter_consumer_key"`
-	TwitterConsumerSecret string `json:"twitter_consumer_secret"`
-	TwitterAccessToken    string `json:"twitter_access_token"`
-	TwitterTokenSecret    string `json:"twitter_token_secret"`
+	BitMexHost     string `json:"bitmex_host"`
+	DiscordToken   string `json:"discord_token"`
+	DiscordChannel string `json:"discord_channel"`
 }
 
 func loadConfig() (config BotConfig, err error) {
@@ -55,7 +52,7 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 )
 
-func runClient(cfg BotConfig, twitter *twitter.Client, state *State) error {
+func runClient(cfg BotConfig, discord *discordgo.Session, state *State) error {
 	// Subscribe to the liquidation feed.
 	// https://www.bitmex.com/app/wsAPI
 	var u url.URL
@@ -163,10 +160,11 @@ func runClient(cfg BotConfig, twitter *twitter.Client, state *State) error {
 
 						status := dl.String()
 
-						if tweet, _, err := twitter.Statuses.Update(status, nil); err != nil {
-							log.Println("Failed to tweet:", status)
+						_, err = discord.ChannelMessageSend(cfg.DiscordChannel, status)
+						if err != nil {
+							log.Println("Failed to send message:", status)
 						} else {
-							log.Printf("Sent tweet: %v: '%v'\n", tweet.IDStr, status)
+							log.Printf("Sent message: %v\n", status)
 						}
 					}
 				}
@@ -199,15 +197,13 @@ func main() {
 		log.Fatal("Failed to load state:", err)
 	}
 
-	client := twitter.NewClient(oauth1.NewConfig(cfg.TwitterConsumerKey, cfg.TwitterConsumerSecret).Client(oauth1.NoContext, oauth1.NewToken(cfg.TwitterAccessToken, cfg.TwitterTokenSecret)))
-	user, _, err := client.Accounts.VerifyCredentials(nil)
+	discord, err := discordgo.New("Bot " + cfg.DiscordToken)
+	discord.Open()
 	if err != nil {
-		log.Fatal("Failed to verify Twitter credentials:", err)
+		log.Fatal("Unable to run discord:", err)
 	}
 
-	log.Println("Logged in as:", user.Name)
-
-	if err := runClient(cfg, client, state); err != nil {
+	if err := runClient(cfg, discord, state); err != nil {
 		log.Fatal("Error:", err)
 	}
 }
