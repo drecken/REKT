@@ -136,6 +136,9 @@ func runClient(cfg BotConfig, discord *discordgo.Session, state *State) error {
 
 						price := innerData["price"].(float64)
 						leavesQty := int64(innerData["leavesQty"].(float64)) // Cast to int64 because this is always int
+						if leavesQty < 5000 {
+							continue
+						}
 						symbol := innerData["symbol"].(string)
 						side := innerData["side"].(string)
 						orderID := innerData["orderID"].(string)
